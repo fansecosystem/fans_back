@@ -9,6 +9,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import {
+  Public,
+  Resource,
+  RoleMatchingMode,
+  Roles,
+} from 'nest-keycloak-connect';
 import { ValidationTransform } from 'src/@shared/pipes/validation-transform.pipe';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
@@ -17,10 +23,12 @@ import { createPartnerSchema } from './validators/create-partner.validator';
 import { updatePartnerSchema } from './validators/update-partner.validator';
 
 @Controller('partners')
+@Resource('partners')
 export class PartnersController {
   constructor(private readonly partnersService: PartnersService) {}
 
   @Post()
+  @Roles({ roles: ['sys-admin'], mode: RoleMatchingMode.ANY })
   create(
     @Body(new ValidationTransform(createPartnerSchema))
     createPartnerDto: CreatePartnerDto,
@@ -29,6 +37,7 @@ export class PartnersController {
   }
 
   @Get()
+  @Public()
   findAll(
     @Query('orderBy') orderBy: string,
     @Query('page') page: string,
@@ -46,6 +55,7 @@ export class PartnersController {
   }
 
   @Get(':id')
+  @Public()
   findOne(@Param('id') id: string) {
     return this.partnersService.findOne(+id);
   }

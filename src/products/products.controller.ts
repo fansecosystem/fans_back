@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Public } from 'nest-keycloak-connect';
 import { ValidationTransform } from 'src/@shared/pipes/validation-transform.pipe';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -29,6 +30,7 @@ export class ProductsController {
   }
 
   @Get()
+  @Public()
   findAll(
     @Query('orderBy') orderBy: string,
     @Query('page') page: string,
@@ -38,6 +40,7 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @Public()
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(+id);
   }

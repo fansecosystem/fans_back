@@ -9,6 +9,6 @@ WORKDIR /home/app
 
 USER node
 
-EXPOSE 8080
+EXPOSE 8081
 
 CMD ["tail", "-f", "/dev/null"]

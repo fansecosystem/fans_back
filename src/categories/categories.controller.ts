@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Public, Roles } from 'nest-keycloak-connect';
 import { ValidationTransform } from 'src/@shared/pipes/validation-transform.pipe';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -21,6 +22,7 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
+  @Roles({ roles: ['sys-admin'] })
   create(
     @Body(new ValidationTransform(createCategorySchema))
     createCategoryDto: CreateCategoryDto,
@@ -29,6 +31,7 @@ export class CategoriesController {
   }
 
   @Get()
+  @Public()
   findAll(
     @Query('orderBy') orderBy: string,
     @Query('page') page: string,
@@ -38,11 +41,13 @@ export class CategoriesController {
   }
 
   @Get(':id')
+  @Public()
   findOne(@Param('id') id: string) {
     return this.categoriesService.findOne(+id);
   }
 
   @Patch(':id')
+  @Roles({ roles: ['sys-admin'] })
   update(
     @Param('id') id: string,
     @Body(new ValidationTransform(updateCategorySchema))
