@@ -71,15 +71,18 @@ model Address {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  name      String
-  document  String    @unique
-  phone     String?
-  role      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  Address   Address[]
-  Partner   Partner[]
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  name             String
+  document         String    @unique
+  phone            String?
+  role             String
+  keycloakUserId   String?
+  emailVerified    Boolean   @default(false)
+  verificationCode String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  Address          Address[]
+  Partner          Partner[]
 }

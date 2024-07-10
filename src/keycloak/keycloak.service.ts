@@ -40,6 +40,7 @@ export class KeycloakService {
       if (!accessToken) {
         throw new InternalServerErrorException('Failed to get access token');
       }
+
       await this.httpService.axiosRef.post(
         `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users`,
         {
@@ -48,8 +49,7 @@ export class KeycloakService {
           firstName: data.firstName,
           lastName: data.lastName,
           enabled: true,
-          // replace to false when email service is ready
-          emailVerified: true,
+          emailVerified: false,
           credentials: [
             {
               type: 'password',
@@ -64,10 +64,49 @@ export class KeycloakService {
           },
         },
       );
-      return true;
+
+      const userResponse = await this.httpService.axiosRef.get(
+        `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?username=${data.username}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      const user = userResponse.data[0];
+      const userId = user.id;
+
+      if (!userId) {
+        throw new InternalServerErrorException('Failed to get user id');
+      }
+
+      const roleResponse = await this.httpService.axiosRef.get(
+        `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/clients/${process.env.KEYCLOAK_CLIENT_UUID}/roles/${data.role}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      const userRole = roleResponse.data;
+
+      await this.httpService.axiosRef.post(
+        `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${userId}/role-mappings/clients/${process.env.KEYCLOAK_CLIENT_UUID}`,
+        [userRole],
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      return userId;
     } catch (error) {
+      console.log(error);
       Logger.error('Failed to create user', error);
-      return false;
+      return null;
     }
   }
 
@@ -108,5 +147,65 @@ export class KeycloakService {
       throw new Error('Email not found in token');
     }
     return decodedToken.email;
+  }
+
+  async verifyUserEmail(email: string) {
+    try {
+      const accessToken = await this.getAdminAccessToken();
+      if (!accessToken) {
+        throw new InternalServerErrorException('Failed to get access token');
+      }
+
+      const userResponse = await this.httpService.axiosRef.get(
+        `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users?email=${email}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      const user = userResponse.data[0];
+      if (!user) {
+        throw new InternalServerErrorException('User not found');
+      }
+
+      await this.httpService.axiosRef.put(
+        `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${user.id}`,
+        {
+          emailVerified: true,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      return true;
+    } catch (error) {
+      Logger.error('Failed to verify user email', error);
+      return false;
+    }
+  }
+
+  async updatePassword(userId: string, password: string) {
+    const accessToken = await this.getAdminAccessToken();
+    if (!accessToken) {
+      throw new InternalServerErrorException('Failed to get access token');
+    }
+    return this.httpService.axiosRef.put(
+      `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users/${userId}/reset-password`,
+      {
+        type: 'password',
+        value: password,
+        temporary: false,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
   }
 }

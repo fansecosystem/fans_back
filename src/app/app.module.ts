@@ -9,6 +9,7 @@ import {
 } from 'nest-keycloak-connect';
 import { CategoriesModule } from 'src/categories/categories.module';
 import { KeycloakModule } from 'src/keycloak/keycloak.module';
+import { MailerModule } from 'src/mailer/mailer.module';
 import { PartnersModule } from 'src/partners/partners.module';
 import { ProductsModule } from 'src/products/products.module';
 import { UsersModule } from 'src/users/users.module';
@@ -26,6 +27,7 @@ import { AppService } from './app.service';
       clientId: process.env.KEYCLOAK_CLIENT_ID,
       secret: process.env.KEYCLOAK_SECRET,
     }),
+    MailerModule,
     KeycloakModule,
     CategoriesModule,
     ProductsModule,
