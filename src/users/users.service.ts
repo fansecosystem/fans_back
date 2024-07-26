@@ -36,7 +36,7 @@ export class UsersService {
         },
       });
       if (user) {
-        throw new BadRequestException('User already exists');
+        throw new BadRequestException('Usuário já possui cadastro');
       }
       await this.prismaService.$transaction(async (prisma) => {
         const keycloakUserId = await this.keycloakService.createUser({
@@ -48,7 +48,9 @@ export class UsersService {
           role: createUserDto.role,
         });
         if (!keycloakUserId) {
-          throw new InternalServerErrorException('User creation failed');
+          throw new InternalServerErrorException(
+            'Falha no cadastro do usuário',
+          );
         }
         const verificationCode = generateVerificationCode();
         await prisma.user.create({
@@ -89,12 +91,23 @@ export class UsersService {
   }
 
   async auth(data: EmailPasswordAuthDto) {
+    const user = await this.prismaService.user.findFirst({
+      where: {
+        email: data.email,
+      },
+    });
+    if (!user) {
+      throw new BadRequestException('Verifique suas credenciais');
+    }
+    if (!user.active) {
+      throw new BadRequestException('Usuário bloqueado');
+    }
     const response = await this.keycloakService.getUserToken(
       data.email,
       data.password,
     );
     if (!response) {
-      throw new BadRequestException('Invalid credentials');
+      throw new BadRequestException('Verifique suas credenciais');
     }
     return response;
   }
@@ -113,7 +126,7 @@ export class UsersService {
         },
       });
       if (!user) {
-        throw new BadRequestException('Invalid verification code');
+        throw new BadRequestException('Código de verificação inválido');
       }
       await this.prismaService.$transaction(async (prisma) => {
         await this.keycloakService.verifyUserEmail(user.email);
@@ -128,14 +141,14 @@ export class UsersService {
         });
       });
       return {
-        message: 'Email verified successfully',
+        message: 'E-mail verificado com sucesso',
       };
     } catch (error) {
       Logger.error(error);
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to verify e-mail');
+      throw new InternalServerErrorException('Falha ao verificar e-mail');
     }
   }
 
@@ -146,10 +159,11 @@ export class UsersService {
           where: {
             email,
             emailVerified: false,
+            active: true,
           },
         });
         if (!user) {
-          throw new BadRequestException('User not found');
+          throw new BadRequestException('Usuário não encontrado');
         }
         const verificationCode = generateVerificationCode();
         await prisma.user.update({
@@ -177,7 +191,7 @@ export class UsersService {
         );
       });
       return {
-        message: 'Verification e-mail sent successfully',
+        message: 'E-mail de verificação reenviado com sucesso',
       };
     } catch (error) {
       Logger.error(error);
@@ -185,7 +199,7 @@ export class UsersService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Failed to resend verification e-mail',
+        'Falha ao reenviar e-mail de verificação',
       );
     }
   }
@@ -196,10 +210,11 @@ export class UsersService {
         const user = await prisma.user.findFirst({
           where: {
             email,
+            active: true,
           },
         });
         if (!user) {
-          throw new BadRequestException('User not found');
+          throw new BadRequestException('Usuário não encontrado');
         }
         const verificationCode = generateVerificationCode();
         await prisma.user.update({
@@ -227,7 +242,7 @@ export class UsersService {
         );
       });
       return {
-        message: 'Password reset e-mail sent successfully',
+        message: 'E-mail de redefinição de senha enviado com sucesso',
       };
     } catch (error) {
       Logger.error(error);
@@ -235,22 +250,52 @@ export class UsersService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Failed to send password reset e-mail',
+        'Falha ao enviar e-mail de redefinição de senha',
       );
     }
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     try {
+      let error = '';
       await this.prismaService.$transaction(async (prisma) => {
         const user = await prisma.user.findFirst({
           where: {
-            verificationCode: resetPasswordDto.verificationCode,
             email: resetPasswordDto.email,
+            active: true,
           },
         });
         if (!user) {
-          throw new BadRequestException('Invalid verification code');
+          error = 'Usuário não encontrado';
+          return;
+        }
+        // Se o usuário tentar redefinir a senha mais de 3 vezes, bloqueia o usuário
+        if (user.resetPasswordTryCount >= 3) {
+          await prisma.user.update({
+            where: {
+              id: user.id,
+            },
+            data: {
+              verificationCode: null,
+              resetPasswordTryCount: 0,
+              active: false,
+            },
+          });
+          error =
+            'Limite de tentativas de redefinição de senha excedido, contate o suporte';
+          return;
+        }
+        if (user.verificationCode !== resetPasswordDto.verificationCode) {
+          await prisma.user.update({
+            where: {
+              id: user.id,
+            },
+            data: {
+              resetPasswordTryCount: user.resetPasswordTryCount + 1,
+            },
+          });
+          error = 'Código de verificação inválido';
+          return;
         }
         await this.keycloakService.updatePassword(
           user.keycloakUserId,
@@ -262,18 +307,22 @@ export class UsersService {
           },
           data: {
             verificationCode: null,
+            resetPasswordTryCount: 0,
           },
         });
       });
+      if (error) {
+        throw new BadRequestException(error);
+      }
       return {
-        message: 'Password updated successfully',
+        message: 'Senha redefinida com sucesso',
       };
     } catch (error) {
       Logger.error(error);
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to update password');
+      throw new InternalServerErrorException('Falha ao redefinir senha');
     }
   }
 
@@ -329,7 +378,7 @@ export class UsersService {
       },
     });
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException('Usuário não encontrado');
     }
     return this.prismaService.user.update({
       where: {

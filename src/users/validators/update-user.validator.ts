@@ -6,11 +6,12 @@ export const updateUserSchema = z.object({
   phone: z.string().min(8),
   document: z
     .string()
-    .min(11)
     .refine(
       (document) => {
+        if (!document) return true;
         return cpf.isValid(document) || cnpj.isValid(document);
       },
       { message: 'must be a valid cpf or cnpj' },
-    ),
+    )
+    .default('none'),
 });
